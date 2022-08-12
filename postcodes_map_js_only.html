@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Postcode Map</title>
+<style>
+html, body, #map {
+	height: 100vh;
+	width: 100%;
+	margin: 0px;
+	padding: 0px;
+     display: flex;
+  align-items: center;
+  justify-content: center;
+    
+}
+</style>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDhO-UNM8tj8w3X5Cwk-_RO53msKVB8dN8"></script> 
+<script src="js/papaparse.min.js"></script>
+</head>
+<body>
+<div id="map">Loading map</div>
+<div id="map-markers"></div>
+<script>
+    function loadCSV(file) {
+       const response = fetch(file)
+       .then(response => response.text())
+       .then(csvdata => Papa.parse(csvdata, {
+           header: true,
+           skipEmptyLines: true
+       }))
+       .catch(err => console.log(err))
+       response.then(
+           csvdata => createMarkers(csvdata.data).then(MarkersData => initMap(MarkersData))
+       )
+    } 
+    async function get_valid_postcode (sector) {
+        let response = await fetch('https://api.postcodes.io/postcodes/'+sector+'/autocomplete');
+        let data = await response.json();
+        return data;
+    }
+    
+    async function createMarkers(data) {
+        var MarkersData = new Array();   
+        
+        for (let postcodeArea of data) {
+            if (postcodeArea.SECTOR) {
+                
+                document.getElementById("map").innerText = "Processing " + postcodeArea.SECTOR;
+                const result = await get_valid_postcode(postcodeArea.SECTOR.replace(/\s/g,''));
+                if (result.result) { 
+                    var marker = new Array();
+                    marker['valid_postcode'] = result.result[0]
+                    marker['postcodeArea'] = postcodeArea
+                    MarkersData.push( marker )
+                }
+            }    
+        }  
+        return MarkersData
+    }
+    function initMap(MarkersData){
+        var mapStyles = [{
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{
+				visibility: "off"
+			}]
+        }];
+        var map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 9,
+            center: new google.maps.LatLng(53.381021, -2.608138),
+            mapTypeId: google.maps.MapTypeId.TERRAIN,
+            styles: mapStyles,
+
+        });
+        var infowindow = new google.maps.InfoWindow();
+        var geocoder = new google.maps.Geocoder();
+        var bounds = new google.maps.LatLngBounds();
+        var marker, i;
+        for (let sector of MarkersData) {            
+            geocoder.geocode({
+                'address' : sector.valid_postcode
+            }, function (results, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                    map.setCenter(results[0].geometry.location);
+                    var marker = new google.maps.Marker({
+                        map: map,
+                        title: sector.valid_postcode,
+                        position: results[0].geometry.location
+                    });
+                    bounds.extend(marker.getPosition());
+                    map.fitBounds(bounds);
+                    google.maps.event.addListener(marker, 'click', (function (marker, location) {
+                        return function () {
+                            infowindow.setContent(sector.postcodeArea.SECTOR +'<br>'+sector.postcodeArea.BASEHHS);
+                            infowindow.open(map, marker);
+                        };
+                    })(marker, location));
+                } else {
+                    console.log("Geocode was not successful for the following reason: " + status);
+                }
+            });
+        }
+    }
+document.addEventListener("DOMContentLoaded", function(){    
+    loadCSV('Camberley_RF.csv');        
+});
+</script>
+</body>
+</html>
