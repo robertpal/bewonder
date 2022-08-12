@@ -42,7 +42,6 @@ process_csv( array_map( 'str_getcsv', file('Camberley_RF.csv' ) ) );
 </head>
 <body>
     <div id="map">Loading map</div>
-    <div class="map-markers"></div>
 <script>
 document.addEventListener("DOMContentLoaded", function(){
         var locations = <?php echo json_encode($map_data);?>;
